@@ -1050,9 +1050,9 @@ impl Simulation {
                         None
                     };
 
-                    let tgt_pos = if let Some(ds) = edge_group.custom.get("afferent_swc_pos") {
+                    let tgt_pos = if let Some(ds) = edge_group.custom.get("afferent_section_pos") {
                         ds[group_index]
-                    } else if let Some(s) = ty.attributes.get("afferent_swc_pos") {
+                    } else if let Some(s) = ty.attributes.get("afferent_section_pos") {
                         if let Attribute::Float(s) = s {
                             *s
                         } else {
@@ -1065,9 +1065,9 @@ impl Simulation {
                         0.5 // default to centering
                     };
 
-                    let tgt_id = if let Some(ds) = edge_group.custom.get("afferent_swc_id") {
+                    let tgt_id = if let Some(ds) = edge_group.custom.get("afferent_section_id") {
                         ds[group_index]
-                    } else if let Some(s) = ty.attributes.get("afferent_swc_id") {
+                    } else if let Some(s) = ty.attributes.get("afferent_section_id") {
                         if let Attribute::Float(s) = s {
                             *s
                         } else {

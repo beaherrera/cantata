@@ -9,7 +9,7 @@ import re
 # configuration
 have_timing = False
 have_stats = False
-have_venv = True
+have_venv = False
 
 cur_version = [0, 10, 0]
 nxt_version = [0, 11, 0]
@@ -219,7 +219,14 @@ class recipe(A.recipe):
         # convert raw data into things we handle
         self.cable_props = A.neuron_cable_properties()
         properties = read_dict(data, "cable_cell_globals")
-        self.cable_props.catalogue.extend(A.allen_catalogue(), "")
+        # self.cable_props.catalogue.extend(A.allen_catalogue(), "")
+        self.cable_props.catalogue.extend(
+            A.load_catalogue(
+                "/allen/programs/mindscope/workgroups/realistic-model/beatriz.herrera/arbor-bmtk/allen_Jan9_2025-catalogue.so"
+                # "/allen/programs/mindscope/workgroups/realistic-model/beatriz.herrera/arbor-bmtk/cat-catalogue.so"
+            ),
+            "",
+        )
         if properties:
             self.cable_props.set_property(
                 Vm=properties["v_init"] * U.mV, tempK=properties["celsius"] * U.Celsius
@@ -377,7 +384,7 @@ timing.toc("build/simulation")
 timing.tic("build/sampling")
 sim.record(A.spike_recording.all)
 
-schedule = A.regular_schedule(tstart=0 * U.ms, dt=10 * rec.dt * U.ms)
+schedule = A.regular_schedule(tstart=0 * U.ms, dt=rec.dt * U.ms)
 handles = {
     (gid, tag): sim.sample((gid, f"probe-{tag}"), schedule=schedule)
     for gid, prbs in rec.gid_to_prb.items()
