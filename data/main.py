@@ -5,15 +5,27 @@ import subprocess as sp
 import site
 import sys
 import re
+from argparse import ArgumentParser
 
-# configuration
-have_timing = False
-have_stats = False
-have_venv = False
-have_mpi = False
-have_gpu = False
-have_plots = False
+# process arguments
+ap = ArgumentParser()
+ap.add_argument('-e', '--use-venv',  action='store_true', default=False, help='Setup and use virtual env.')
+ap.add_argument('-s', '--use-stats', action='store_true', default=False, help='Collect and print simulation statistics.')
+ap.add_argument('-t', '--use-times', action='store_true', default=False, help='Collect and print simulation timings.')
+ap.add_argument('-m', '--use-mpi',   action='store_true', default=False, help='Use MPI.')
+ap.add_argument('-g', '--use-gpu',   action='store_true', default=False, help='Use GPU.')
+ap.add_argument('-p', '--plot',      action='store_true', default=False, help='Plot data in addition to storing.')
 
+args = ap.parse_args()
+
+have_timing = args.t
+have_stats = args.s
+have_venv = args.e
+have_mpi = args.m
+have_gpu = args.g
+have_plots = args.p
+
+# version meta data
 cur_version = [0, 10, 0]
 nxt_version = [0, 11, 0]
 cur_version_str = f"{cur_version[0]}.{cur_version[1]}.{cur_version[2]}"
