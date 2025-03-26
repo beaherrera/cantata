@@ -1,7 +1,7 @@
 use cantata::{
     err::{Context, Result},
     fit::Fit,
-    gen::Bundle,
+    r#gen::Bundle,
     nml, raw,
     sim::Simulation,
     sup::find_component,

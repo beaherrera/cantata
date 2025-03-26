@@ -18,12 +18,12 @@ ap.add_argument('-p', '--plot',      action='store_true', default=False, help='P
 
 args = ap.parse_args()
 
-have_timing = args.t
-have_stats = args.s
-have_venv = args.e
-have_mpi = args.m
-have_gpu = args.g
-have_plots = args.p
+have_timing = args.use_venv
+have_stats  = args.use_stats
+have_venv   = args.use_times
+have_mpi    = args.use_mpi
+have_gpu    = args.use_gpu
+have_plots  = args.plot
 
 # version meta data
 cur_version = [0, 10, 0]
@@ -79,21 +79,25 @@ def load_morphology(path):
     sfx = path.suffix
     if sfx == ".swc":
         try:
-            return A.load_swc_arbor(path).morphology
-        except:
+            res = A.load_swc_neuron(path)
+            print(path, res.segment_tree.size)
+            return res.morphology, res.metadata
+        except Exception as _:
             pass
         try:
-            return A.load_swc_neuron(path).morphology
-        except:
+            res = A.load_swc_arbor(path)
+            return res.morphology, res.metadata
+        except Exception as _:
             raise RuntimeError(
                 f"Could load {path} neither as NEURON nor Arbor flavour."
             )
+
     elif sfx == ".asc":
-        return A.load_asc(path).morphology
+        return A.load_asc(path).morphology, None
     elif sfx == ".nml":
         nml = A.neuroml(path)
         if len(nml.morphology_ids()) == 1:
-            return nml.morphology(nml.morphology_ids()[0]).morphology
+            return nml.morphology(nml.morphology_ids()[0]).morphology, None
         else:
             raise RuntimeError(f"NML file {path} contains multiple morphologies.")
     else:
@@ -317,15 +321,19 @@ class recipe(A.recipe):
         return res
 
     def make_cable_cell(self, gid):
-        mrf, dec = self.load_cable_data(gid)
+        mrf, dec, meta = self.load_cable_data(gid)
         lbl = A.label_dict().add_swc_tags()
         # NOTE in theory we could have more and in other places...
         dec.place(
             "(location 0 0.5)", A.threshold_detector(self.threshold * U.mV), "src-0"
         )
         if gid in self.gid_to_syn:
-            for location, synapse, params, tag in self.gid_to_syn[gid]:
-                dec.place(location, A.synapse(synapse, **params), f"syn-{tag}")
+            for seg, frac, synapse, params, tag in self.gid_to_syn[gid]:
+                # map -- if given -- swc id to segment
+                if meta:
+                    print(frac)
+                    seg = meta[seg]
+                dec.place(f"(on-components {frac} (segment {seg}))", A.synapse(synapse, **params), f"syn-{tag}")
         if gid in self.gid_to_icp:
             for loc, delay, duration, amplitude, tag in self.gid_to_icp[gid]:
                 dec.place(
@@ -392,16 +400,20 @@ class recipe(A.recipe):
 
     def load_cable_data(self, gid):
         mid, cid = self.gid_to_bio[gid]
-        if gid == 118:
-            print(self.cid_to_acc[cid])
         if gid not in self.cable_data:
             timing.tic("build/simulation/io")
-            mrf = load_morphology(here / "mrf" / self.mid_to_mrf[mid])
+            mrf, meta = load_morphology(here / "mrf" / self.mid_to_mrf[mid])
+            if meta:
+                inv = {}
+                for ix in range(len(meta.segment_dist_id)):
+                    inv[meta.segment_dist_id[ix]] = ix
+                meta = inv
             dec = A.load_component(here / "acc" / self.cid_to_acc[cid]).component
-            self.cable_data[gid] = (mrf, dec)
+            self.cable_data[gid] = (mrf, dec, meta)
             timing.toc("build/simulation/io")
-        mrf, dec = self.cable_data[gid]
-        return mrf, A.decor(dec)  # NOTE copy that decor!!
+        mrf, dec, meta = self.cable_data[gid]
+        print(gid, self.mid_to_mrf[mid], len(meta))
+        return mrf, A.decor(dec), meta  # NOTE copy that decor!!
 
 
 timing.tic("build/recipe")

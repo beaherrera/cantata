@@ -47,7 +47,7 @@ pub fn mk_acc(data: &Path) -> Result<String> {
     for it in decor.iter_mut() {
         if let nml2::acc::Decor::Paint(
             _,
-            nml2::acc::Paintable::Mech(ref mut mech, ref mut params),
+            nml2::acc::Paintable::Mech(mech, params),
         ) = it
         {
             for (m, p, q) in PARAMS.iter() {

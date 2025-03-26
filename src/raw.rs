@@ -13,9 +13,8 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Raw SONATA types
-///
-/// Used to ingest simulation.json files.
+// Raw SONATA types
+// Used to ingest simulation.json files.
 
 /// default=true
 fn yes() -> bool {

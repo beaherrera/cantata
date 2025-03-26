@@ -7,14 +7,14 @@ use crate::{
 use anyhow::{anyhow, bail};
 use serde::Serialize;
 
-/// Resources to store in the output.
+// Resources to store in the output.
 
 /// (src_gid, src_tag, tgt_tag, weight, delay)
 type ConnectionData = (usize, usize, usize, f64, f64);
 /// (location, variable, tag)
 type ProbeData = (Option<String>, String, usize);
-/// (location, mech, params, tag)
-type SynapseData = (String, String, Map<String, f64>, usize);
+/// (segment, fraction, mech, params, tag)
+type SynapseData = (i64, f64, String, Map<String, f64>, usize);
 /// (location, delay, duration, current, tag)
 type IClampData = (String, f64, f64, f64, usize);
 
@@ -145,11 +145,7 @@ impl Bundle {
                         ));
                         let mech = edge.mech.as_ref().ok_or(anyhow!("Edge has no mechanism"))?;
                         let mech = fudge_synapse_dynamics(mech);
-                        let loc = format!(
-                            "(on-components {} (segment {}))",
-                            edge.target.1, edge.target.0
-                        );
-                        syn.push((loc, mech, edge.dynamics.clone(), ix));
+                        syn.push((edge.target.0 as i64, edge.target.1, mech, edge.dynamics.clone(), ix));
                     }
                     incoming_connections.insert(gid, inc);
                     synapses.insert(gid, syn);
