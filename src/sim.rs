@@ -508,7 +508,7 @@ impl EdgeList {
 pub struct Edge {
     pub src_gid: u64,
     pub source: (u64, f64),
-    pub target: (u64, f64),
+    pub target: (f64, f64, f64),
     pub mech: Option<String>,
     pub delay: f64,
     pub weight: f64,
@@ -1050,9 +1050,9 @@ impl Simulation {
                         None
                     };
 
-                    let tgt_pos = if let Some(ds) = edge_group.custom.get("afferent_swc_pos") {
+                    let tgt_pos_x = if let Some(ds) = edge_group.custom.get("afferent_section_xcoords") {
                         ds[group_index]
-                    } else if let Some(s) = ty.attributes.get("afferent_swc_pos") {
+                    } else if let Some(s) = ty.attributes.get("afferent_section_xcoords") {
                         if let Attribute::Float(s) = s {
                             *s
                         } else {
@@ -1062,12 +1062,12 @@ impl Simulation {
                                 );
                         }
                     } else {
-                        0.5 // default to centering
+                        0.0 // default to soma location
                     };
 
-                    let tgt_id = if let Some(ds) = edge_group.custom.get("afferent_swc_id") {
+                    let tgt_pos_y = if let Some(ds) = edge_group.custom.get("afferent_section_ycoords") {
                         ds[group_index]
-                    } else if let Some(s) = ty.attributes.get("afferent_swc_id") {
+                    } else if let Some(s) = ty.attributes.get("afferent_section_ycoords") {
                         if let Attribute::Float(s) = s {
                             *s
                         } else {
@@ -1077,8 +1077,23 @@ impl Simulation {
                                 );
                         }
                     } else {
-                        0.0 // default to first (=soma?)
-                    } as u64;
+                        0.0 // default to soma location
+                    };
+
+                    let tgt_pos_z = if let Some(ds) = edge_group.custom.get("afferent_section_zcoords") {
+                        ds[group_index]
+                    } else if let Some(s) = ty.attributes.get("afferent_section_zcoords") {
+                        if let Attribute::Float(s) = s {
+                            *s
+                        } else {
+                            bail!(
+                                    "Edge type {type_id} in population {} has non-numeric segment position",
+                                    edge_population.name
+                                );
+                        }
+                    } else {
+                        0.0 // default to soma location
+                    };
 
                     let src_pos = if let Some(ds) = edge_group.custom.get("efferent_swc_pos") {
                         ds[group_index]
@@ -1122,7 +1137,7 @@ impl Simulation {
                     incoming_edges.push(Edge {
                         src_gid,
                         source: (src_id, src_pos),
-                        target: (tgt_id, tgt_pos),
+                        target: (tgt_pos_x, tgt_pos_y, tgt_pos_z),
                         mech,
                         delay,
                         weight,
