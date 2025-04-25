@@ -1062,7 +1062,10 @@ impl Simulation {
                                 );
                         }
                     } else {
-                        0.0 // default to soma location
+                        bail!(
+                                "[UNSUPPORTED] Edge type {type_id} in population {} is missing the `x` coordinates for the target segments. (x,y,z) coordinates of traget segmemnts are required for synapse placement.",
+                                edge_population.name
+                                );
                     };
 
                     let tgt_pos_y = if let Some(ds) = edge_group.custom.get("afferent_section_ycoords") {
@@ -1077,7 +1080,10 @@ impl Simulation {
                                 );
                         }
                     } else {
-                        0.0 // default to soma location
+                        bail!(
+                                "[UNSUPPORTED] Edge type {type_id} in population {} is missing the `y` coordinates for the target segments. (x,y,z) coordinates of traget segmemnts are required for synapse placement.",
+                                edge_population.name
+                                );
                     };
 
                     let tgt_pos_z = if let Some(ds) = edge_group.custom.get("afferent_section_zcoords") {
@@ -1092,7 +1098,10 @@ impl Simulation {
                                 );
                         }
                     } else {
-                        0.0 // default to soma location
+                        bail!(
+                                "[UNSUPPORTED] Edge type {type_id} in population {} is missing the `z` coordinates for the target segments. (x,y,z) coordinates of traget segmemnts are required for synapse placement.",
+                                edge_population.name
+                                );
                     };
 
                     let src_pos = if let Some(ds) = edge_group.custom.get("efferent_swc_pos") {
