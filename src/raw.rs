@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::{
-    err::{anyhow, Context, Result},
-    sup::{resolve_manifest, Components, Manifest},
     Map,
+    err::{Context, Result, anyhow},
+    sup::{Components, Manifest, resolve_manifest},
 };
 
 use serde::{Deserialize, Serialize};

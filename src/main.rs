@@ -111,10 +111,7 @@ fn build(from: &str, to: &str) -> Result<()> {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.cmd {
-        Cmd::Build {
-            from,
-            to,
-        } => build(&from, &to),
+        Cmd::Build { from, to } => build(&from, &to),
         Cmd::Run { from, to } => {
             let to = if let Some(to) = to {
                 to.to_string()
