@@ -128,7 +128,7 @@ impl Decor {
         acc.push_str(
             "(arbor-component
   (meta-data
-    (version \"0.9-dev\"))
+    (version \"0.10-dev\"))
       (decor",
         );
         if let Some(v) = self.defaults.cm {
@@ -193,6 +193,13 @@ impl Decor {
             },
         ) in self.mechanisms.iter()
         {
+            // NOTE This is a nasty hack, but required for automatic Nernst
+            // setting in the main script!
+            if let Some(v) = parameters.get("gbar") {
+                if *v == 0.0 {
+                    continue;
+                }
+            }
             let mut mech = name.to_string();
             let mut sep = '/';
             for (k, v) in globals {

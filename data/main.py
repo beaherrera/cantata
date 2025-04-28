@@ -5,12 +5,51 @@ import subprocess as sp
 import site
 import sys
 import re
+from argparse import ArgumentParser
 
-# configuration
-have_timing = False
-have_stats = False
-have_venv = True
+# process arguments
+ap = ArgumentParser()
+ap.add_argument(
+    "-e",
+    "--use-venv",
+    action="store_true",
+    default=False,
+    help="Setup and use virtual env.",
+)
+ap.add_argument(
+    "-s",
+    "--use-stats",
+    action="store_true",
+    default=False,
+    help="Collect and print simulation statistics.",
+)
+ap.add_argument(
+    "-t",
+    "--use-times",
+    action="store_true",
+    default=False,
+    help="Collect and print simulation timings.",
+)
+ap.add_argument("-m", "--use-mpi", action="store_true", default=False, help="Use MPI.")
+ap.add_argument("-g", "--use-gpu", action="store_true", default=False, help="Use GPU.")
+ap.add_argument(
+    "-p",
+    "--plot",
+    action="store_true",
+    default=False,
+    help="Plot data in addition to storing.",
+)
 
+args = ap.parse_args()
+
+have_timing = args.use_times
+have_stats = args.use_stats
+have_venv = args.use_venv
+have_mpi = args.use_mpi
+have_gpu = args.use_gpu
+have_plots = args.plot
+
+# version meta data
 cur_version = [0, 10, 0]
 nxt_version = [0, 11, 0]
 cur_version_str = f"{cur_version[0]}.{cur_version[1]}.{cur_version[2]}"
@@ -24,7 +63,7 @@ if have_venv:
     if not Path(env).exists():
         print(f"No .env found, setting up {here}/.env")
         sp.run(
-            f'bash -c "/usr/bin/env python3 -mvenv {env} && source {env}/activate && pip3 install arbor=={cur_version_str} matplotlib numpy pandas cbor2"',
+            f'bash -c "/usr/bin/env python3 -mvenv {env} && source {env}/bin/activate && pip3 install arbor=={cur_version_str} matplotlib numpy pandas cbor2"',
             shell=True,
             check=True,
         )
@@ -303,14 +342,16 @@ class recipe(A.recipe):
 
     def make_cable_cell(self, gid):
         mrf, dec = self.load_cable_data(gid)
+        pwl = A.place_pwlin(mrf)
         lbl = A.label_dict().add_swc_tags()
         # NOTE in theory we could have more and in other places...
         dec.place(
             "(location 0 0.5)", A.threshold_detector(self.threshold * U.mV), "src-0"
         )
         if gid in self.gid_to_syn:
-            for location, synapse, params, tag in self.gid_to_syn[gid]:
-                dec.place(location, A.synapse(synapse, **params), f"syn-{tag}")
+            for x, y, z, synapse, params, tag in self.gid_to_syn[gid]:
+                loc, _ = pwl.closest(x, y, z)
+                dec.place(str(loc), A.synapse(synapse, **params), f"syn-{tag}")
         if gid in self.gid_to_icp:
             for loc, delay, duration, amplitude, tag in self.gid_to_icp[gid]:
                 dec.place(
@@ -322,9 +363,48 @@ class recipe(A.recipe):
                     ),
                     f"ic-{tag}",
                 )
-        dec.discretization(self.cv_policy)
+        # Try to determine whether NRN would use Nernst.
+        # Arbor applies the Nernst rule globally, not per region.
+        regs = dict()
+        for reg, item in dec.paintings():
+            if reg not in regs:
+                regs[reg] = dict()
+            if isinstance(item, A.density):
+                if item.mech.values.get("gbar") == 0:
+                    continue
+                name = item.mech.name
+                mech = self.cable_props.catalogue[name]
+                for ion, data in mech.ions.items():
+                    if ion not in regs[reg]:
+                        # r_conc, w_conc, r_erev, w_erew
+                        regs[reg][ion] = [False, False, False, False]
+                    regs[reg][ion][0] |= data.read_int_con | data.read_ext_con
+                    regs[reg][ion][1] |= data.write_int_con | data.write_ext_con
+                    regs[reg][ion][2] |= data.read_rev_pot
+                    regs[reg][ion][3] |= data.write_rev_pot
+        for reg, ions in regs.items():
+            for ion, [rc, wc, rp, wp] in ions.items():
+                if wc and rp and not wp:
+                    dec.set_ion(
+                        ion,
+                        int_con=self.cable_props.ions[ion].internal_concentration
+                        * U.mM,
+                        ext_con=self.cable_props.ions[ion].external_concentration
+                        * U.mM,
+                        method=f"nernst/x={ion}",
+                    )
+                elif rc and rp and not wp:
+                    # TODO Set eX once using Nernst
+                    dec.set_ion(
+                        ion,
+                        int_con=self.cable_props.ions[ion].internal_concentration
+                        * U.mM,
+                        ext_con=self.cable_props.ions[ion].external_concentration
+                        * U.mM,
+                        method=f"nernst/x={ion}",
+                    )
 
-        return A.cable_cell(mrf, dec, lbl)
+        return A.cable_cell(mrf, dec, lbl, self.cv_policy)
 
     def make_lif_cell(self, gid):
         cell = A.lif_cell("src-0", "syn-0")
@@ -346,7 +426,9 @@ class recipe(A.recipe):
 
     def load_cable_data(self, gid):
         mid, cid = self.gid_to_bio[gid]
-        if not gid in self.cable_data:
+        if gid == 118:
+            print(self.cid_to_acc[cid])
+        if gid not in self.cable_data:
             timing.tic("build/simulation/io")
             mrf = load_morphology(here / "mrf" / self.mid_to_mrf[mid])
             dec = A.load_component(here / "acc" / self.cid_to_acc[cid]).component
@@ -361,7 +443,18 @@ rec = recipe()
 timing.toc("build/recipe")
 
 timing.tic("build/simulation")
-ctx = A.context()
+comm = None
+if have_mpi:
+    from mpi4py import MPI
+
+    comm = MPI.COMM_WORLD
+gpu = None
+if have_gpu:
+    gpu = 0
+    if comm:
+        gpu = A.env.find_private_gpu(comm)
+
+ctx = A.context(gpu_id=gpu, mpi=comm)
 hints = {}
 for kind, tag in zip(
     [A.cell_kind.cable, A.cell_kind.lif, A.cell_kind.spike_source], [0, 1, 2]
@@ -377,7 +470,7 @@ timing.toc("build/simulation")
 timing.tic("build/sampling")
 sim.record(A.spike_recording.all)
 
-schedule = A.regular_schedule(tstart=0 * U.ms, dt=10 * rec.dt * U.ms)
+schedule = A.regular_schedule(tstart=0 * U.ms, dt=rec.dt * U.ms)
 handles = {
     (gid, tag): sim.sample((gid, f"probe-{tag}"), schedule=schedule)
     for gid, prbs in rec.gid_to_prb.items()
@@ -421,9 +514,11 @@ for (gid, tag), handle in handles.items():
     df.index.name = "t/ms"
     df.to_csv(here / "out" / f"gid_{gid}-tag_{tag}.csv")
 
-    fg, ax = plt.subplots()
-    df.plot(ax=ax)
-    fg.savefig(here / "out" / f"gid_{gid}-tag_{tag}.pdf")
+    if have_plots:
+        fg, ax = plt.subplots()
+        df.plot(ax=ax)
+        fg.savefig(here / "out" / f"gid_{gid}-tag_{tag}.pdf")
+        plt.close(fg)
 timing.toc("output/samples")
 
 if have_stats:
