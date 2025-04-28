@@ -9,25 +9,49 @@ from argparse import ArgumentParser
 
 # process arguments
 ap = ArgumentParser()
-ap.add_argument('-e', '--use-venv',  action='store_true', default=False, help='Setup and use virtual env.')
-ap.add_argument('-s', '--use-stats', action='store_true', default=False, help='Collect and print simulation statistics.')
-ap.add_argument('-t', '--use-times', action='store_true', default=False, help='Collect and print simulation timings.')
-ap.add_argument('-m', '--use-mpi',   action='store_true', default=False, help='Use MPI.')
-ap.add_argument('-g', '--use-gpu',   action='store_true', default=False, help='Use GPU.')
-ap.add_argument('-p', '--plot',      action='store_true', default=False, help='Plot data in addition to storing.')
+ap.add_argument(
+    "-e",
+    "--use-venv",
+    action="store_true",
+    default=False,
+    help="Setup and use virtual env.",
+)
+ap.add_argument(
+    "-s",
+    "--use-stats",
+    action="store_true",
+    default=False,
+    help="Collect and print simulation statistics.",
+)
+ap.add_argument(
+    "-t",
+    "--use-times",
+    action="store_true",
+    default=False,
+    help="Collect and print simulation timings.",
+)
+ap.add_argument("-m", "--use-mpi", action="store_true", default=False, help="Use MPI.")
+ap.add_argument("-g", "--use-gpu", action="store_true", default=False, help="Use GPU.")
+ap.add_argument(
+    "-p",
+    "--plot",
+    action="store_true",
+    default=False,
+    help="Plot data in addition to storing.",
+)
 
 args = ap.parse_args()
 
-have_timing = args.use_venv
-have_stats  = args.use_stats
-have_venv   = args.use_times
-have_mpi    = args.use_mpi
-have_gpu    = args.use_gpu
-have_plots  = args.plot
+have_timing = args.use_times
+have_stats = args.use_stats
+have_venv = args.use_venv
+have_mpi = args.use_mpi
+have_gpu = args.use_gpu
+have_plots = args.plot
 
 # version meta data
-cur_version = [0, 10, 0]
-nxt_version = [0, 11, 0]
+cur_version = [0, 11, 0]
+nxt_version = [0, 12, 0]
 cur_version_str = f"{cur_version[0]}.{cur_version[1]}.{cur_version[2]}"
 nxt_version_str = "nxt_version[0]}.{nxt_version[1]}.{nxt_version[2]}"
 
@@ -80,24 +104,23 @@ def load_morphology(path):
     if sfx == ".swc":
         try:
             res = A.load_swc_neuron(path)
-            print(path, res.segment_tree.size)
-            return res.morphology, res.metadata
+            return res.morphology
         except Exception as _:
             pass
         try:
             res = A.load_swc_arbor(path)
-            return res.morphology, res.metadata
+            return res.morphology
         except Exception as _:
             raise RuntimeError(
                 f"Could load {path} neither as NEURON nor Arbor flavour."
             )
 
     elif sfx == ".asc":
-        return A.load_asc(path).morphology, None
+        return A.load_asc(path).morphology
     elif sfx == ".nml":
         nml = A.neuroml(path)
         if len(nml.morphology_ids()) == 1:
-            return nml.morphology(nml.morphology_ids()[0]).morphology, None
+            return nml.morphology(nml.morphology_ids()[0]).morphology
         else:
             raise RuntimeError(f"NML file {path} contains multiple morphologies.")
     else:
@@ -321,19 +344,17 @@ class recipe(A.recipe):
         return res
 
     def make_cable_cell(self, gid):
-        mrf, dec, meta = self.load_cable_data(gid)
+        mrf, dec = self.load_cable_data(gid)
+        pwl = A.place_pwlin(mrf)
         lbl = A.label_dict().add_swc_tags()
         # NOTE in theory we could have more and in other places...
         dec.place(
             "(location 0 0.5)", A.threshold_detector(self.threshold * U.mV), "src-0"
         )
         if gid in self.gid_to_syn:
-            for seg, frac, synapse, params, tag in self.gid_to_syn[gid]:
-                # map -- if given -- swc id to segment
-                if meta:
-                    print(frac)
-                    seg = meta[seg]
-                dec.place(f"(on-components {frac} (segment {seg}))", A.synapse(synapse, **params), f"syn-{tag}")
+            for x, y, z, synapse, params, tag in self.gid_to_syn[gid]:
+                loc, _ = pwl.closest(x, y, z)
+                dec.place(str(loc), A.synapse(synapse, **params), f"syn-{tag}")
         if gid in self.gid_to_icp:
             for loc, delay, duration, amplitude, tag in self.gid_to_icp[gid]:
                 dec.place(
@@ -365,18 +386,26 @@ class recipe(A.recipe):
                     regs[reg][ion][2] |= data.read_rev_pot
                     regs[reg][ion][3] |= data.write_rev_pot
         for reg, ions in regs.items():
-          for ion, [rc, wc, rp, wp] in ions.items():
-              if wc and rp and not wp:
-                  dec.set_ion(ion,
-                              int_con=self.cable_props.ions[ion].internal_concentration * U.mM,
-                              ext_con=self.cable_props.ions[ion].external_concentration * U.mM,
-                              method=f"nernst/x={ion}")
-              elif rc and rp and not wp:
-                  # TODO Set eX once using Nernst
-                  dec.set_ion(ion,
-                              int_con=self.cable_props.ions[ion].internal_concentration * U.mM,
-                              ext_con=self.cable_props.ions[ion].external_concentration * U.mM,
-                              method=f"nernst/x={ion}")
+            for ion, [rc, wc, rp, wp] in ions.items():
+                if wc and rp and not wp:
+                    dec.set_ion(
+                        ion,
+                        int_con=self.cable_props.ions[ion].internal_concentration
+                        * U.mM,
+                        ext_con=self.cable_props.ions[ion].external_concentration
+                        * U.mM,
+                        method=f"nernst/x={ion}",
+                    )
+                elif rc and rp and not wp:
+                    # TODO Set eX once using Nernst
+                    dec.set_ion(
+                        ion,
+                        int_con=self.cable_props.ions[ion].internal_concentration
+                        * U.mM,
+                        ext_con=self.cable_props.ions[ion].external_concentration
+                        * U.mM,
+                        method=f"nernst/x={ion}",
+                    )
 
         return A.cable_cell(mrf, dec, lbl, self.cv_policy)
 
@@ -402,18 +431,12 @@ class recipe(A.recipe):
         mid, cid = self.gid_to_bio[gid]
         if gid not in self.cable_data:
             timing.tic("build/simulation/io")
-            mrf, meta = load_morphology(here / "mrf" / self.mid_to_mrf[mid])
-            if meta:
-                inv = {}
-                for ix in range(len(meta.segment_dist_id)):
-                    inv[meta.segment_dist_id[ix]] = ix
-                meta = inv
+            mrf = load_morphology(here / "mrf" / self.mid_to_mrf[mid])
             dec = A.load_component(here / "acc" / self.cid_to_acc[cid]).component
-            self.cable_data[gid] = (mrf, dec, meta)
+            self.cable_data[gid] = (mrf, dec)
             timing.toc("build/simulation/io")
-        mrf, dec, meta = self.cable_data[gid]
-        print(gid, self.mid_to_mrf[mid], len(meta))
-        return mrf, A.decor(dec), meta  # NOTE copy that decor!!
+        mrf, dec = self.cable_data[gid]
+        return mrf, A.decor(dec) # NOTE copy that decor!!
 
 
 timing.tic("build/recipe")
@@ -421,10 +444,12 @@ rec = recipe()
 timing.toc("build/recipe")
 
 timing.tic("build/simulation")
+
 comm = None
 if have_mpi:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
+
 gpu = None
 if have_gpu:
     gpu = 0
