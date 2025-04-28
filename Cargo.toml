@@ -20,7 +20,6 @@ anyhow       = { version = "1.0.86" }
 csv          = { version = "1.0" }
 hdf5-metno   = { version = "0.9.2" }
 ciborium     = { version = "0.2" }
-serde-pickle = { version = "1.1" }
 nml2         = { version = "0.3.1"}
 
 [[bin]]
