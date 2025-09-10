@@ -28,6 +28,10 @@ pub struct CellMetaData {
     pub population: String,
     /// cell type label
     pub type_id: u64,
+    /// cell position coordinates
+    pub position: (f64, f64, f64),
+    /// cell rotation angles
+    pub rotation: (f64, f64, f64),
 }
 
 impl CellMetaData {
@@ -38,10 +42,14 @@ impl CellMetaData {
             ModelType::Point { .. } => String::from("point"),
             ModelType::Virtual { .. } => String::from("virtual"),
         };
+        let (pos_x, pos_y, pos_z) = node.position;
+        let (rot_x, rot_y, rot_z) = node.rotation;
         Self {
             population: node.pop.to_string(),
             kind,
             type_id: node.node_type.type_id,
+            position: (pos_x, pos_y, pos_z),
+            rotation: (rot_x, rot_y, rot_z),
         }
     }
 }

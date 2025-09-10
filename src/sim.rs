@@ -538,6 +538,10 @@ pub struct Node {
     pub dynamics: Map<String, f64>,
     /// Custom parameters extracted from the population.
     pub custom: Map<String, f64>,
+    /// Node position coordinates (x, y, z)
+    pub position: (f64, f64, f64),
+    /// Node rotation angles (rotation_angle_xaxis, rotation_angle_yaxis, rotation_angle_zaxis)
+    pub rotation: (f64, f64, f64),
 }
 
 /// Bookeeping: index into top-level structure, ie population `pop` is stored at
@@ -1244,6 +1248,56 @@ impl Simulation {
             custom.insert(k.to_string(), vs[group_index]);
         }
 
+        // Extract position coordinates (x, y, z)
+        let pos_x = if let Some(xs) = group.custom.get("x") {
+            xs[group_index]
+        } else if let Some(Attribute::Float(x)) = node_type.attributes().get("x") {
+            *x
+        } else {
+            0.0 // default position
+        };
+
+        let pos_y = if let Some(ys) = group.custom.get("y") {
+            ys[group_index]
+        } else if let Some(Attribute::Float(y)) = node_type.attributes().get("y") {
+            *y
+        } else {
+            0.0 // default position
+        };
+
+        let pos_z = if let Some(zs) = group.custom.get("z") {
+            zs[group_index]
+        } else if let Some(Attribute::Float(z)) = node_type.attributes().get("z") {
+            *z
+        } else {
+            0.0 // default position
+        };
+
+        // Extract rotation angles
+        let rot_x = if let Some(rxs) = group.custom.get("rotation_angle_xaxis") {
+            rxs[group_index]
+        } else if let Some(Attribute::Float(rx)) = node_type.attributes().get("rotation_angle_xaxis") {
+            *rx
+        } else {
+            0.0 // default rotation
+        };
+
+        let rot_y = if let Some(rys) = group.custom.get("rotation_angle_yaxis") {
+            rys[group_index]
+        } else if let Some(Attribute::Float(ry)) = node_type.attributes().get("rotation_angle_yaxis") {
+            *ry
+        } else {
+            0.0 // default rotation
+        };
+
+        let rot_z = if let Some(rzs) = group.custom.get("rotation_angle_zaxis") {
+            rzs[group_index]
+        } else if let Some(Attribute::Float(rz)) = node_type.attributes().get("rotation_angle_zaxis") {
+            *rz
+        } else {
+            0.0 // default rotation
+        };
+
         let incoming_edges = self.reify_edges(&node_population.name, *node_id)?;
 
         Ok(Node {
@@ -1257,6 +1311,8 @@ impl Simulation {
             incoming_edges,
             dynamics,
             custom,
+            position: (pos_x, pos_y, pos_z),
+            rotation: (rot_x, rot_y, rot_z),
         })
     }
 }
