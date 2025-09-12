@@ -1249,54 +1249,23 @@ impl Simulation {
         }
 
         // Extract position coordinates (x, y, z)
-        let pos_x = if let Some(xs) = group.custom.get("x") {
-            xs[group_index]
-        } else if let Some(Attribute::Float(x)) = node_type.attributes().get("x") {
-            *x
-        } else {
-            0.0 // default position
+        let get_cell_attributes = |c: &str| -> f64 {
+            if let Some(cs) = group.custom.get(c) {
+                cs[group_index]
+            } else if let Some(Attribute::Float(val)) = node_type.attributes().get(c) {
+                *val
+            } else {
+                0.0 // default value
+            }
         };
-
-        let pos_y = if let Some(ys) = group.custom.get("y") {
-            ys[group_index]
-        } else if let Some(Attribute::Float(y)) = node_type.attributes().get("y") {
-            *y
-        } else {
-            0.0 // default position
-        };
-
-        let pos_z = if let Some(zs) = group.custom.get("z") {
-            zs[group_index]
-        } else if let Some(Attribute::Float(z)) = node_type.attributes().get("z") {
-            *z
-        } else {
-            0.0 // default position
-        };
+        let pos_x = get_cell_attributes("x");
+        let pos_y = get_cell_attributes("y");
+        let pos_z = get_cell_attributes("z");
 
         // Extract rotation angles
-        let rot_x = if let Some(rxs) = group.custom.get("rotation_angle_xaxis") {
-            rxs[group_index]
-        } else if let Some(Attribute::Float(rx)) = node_type.attributes().get("rotation_angle_xaxis") {
-            *rx
-        } else {
-            0.0 // default rotation
-        };
-
-        let rot_y = if let Some(rys) = group.custom.get("rotation_angle_yaxis") {
-            rys[group_index]
-        } else if let Some(Attribute::Float(ry)) = node_type.attributes().get("rotation_angle_yaxis") {
-            *ry
-        } else {
-            0.0 // default rotation
-        };
-
-        let rot_z = if let Some(rzs) = group.custom.get("rotation_angle_zaxis") {
-            rzs[group_index]
-        } else if let Some(Attribute::Float(rz)) = node_type.attributes().get("rotation_angle_zaxis") {
-            *rz
-        } else {
-            0.0 // default rotation
-        };
+        let rot_x = get_cell_attributes("rotation_angle_xaxis");
+        let rot_y = get_cell_attributes("rotation_angle_yaxis");
+        let rot_z = get_cell_attributes("rotation_angle_zaxis");
 
         let incoming_edges = self.reify_edges(&node_population.name, *node_id)?;
 

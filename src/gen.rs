@@ -42,14 +42,12 @@ impl CellMetaData {
             ModelType::Point { .. } => String::from("point"),
             ModelType::Virtual { .. } => String::from("virtual"),
         };
-        let (pos_x, pos_y, pos_z) = node.position;
-        let (rot_x, rot_y, rot_z) = node.rotation;
         Self {
             population: node.pop.to_string(),
             kind,
             type_id: node.node_type.type_id,
-            position: (pos_x, pos_y, pos_z),
-            rotation: (rot_x, rot_y, rot_z),
+            position: node.position,
+            rotation: node.rotation,
         }
     }
 }

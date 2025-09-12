@@ -376,8 +376,6 @@ class recipe(A.recipe):
         if gid in self.gid_to_syn:
             for x, y, z, synapse, params, tag in self.gid_to_syn[gid]:
                 loc, _ = pwl.closest(x, y, z)
-                arborxyz = pwl.at(loc)
-                print(f"Placing synapse {synapse} at {loc}: {x},{y},{z} vs. {arborxyz}")
                 dec.place(str(loc), A.synapse(synapse, **params), f"syn-{tag}")
         if gid in self.gid_to_icp:
             for loc, delay, duration, amplitude, tag in self.gid_to_icp[gid]:
