@@ -28,6 +28,10 @@ pub struct CellMetaData {
     pub population: String,
     /// cell type label
     pub type_id: u64,
+    /// cell position coordinates
+    pub position: (f64, f64, f64),
+    /// cell rotation angles
+    pub rotation: (f64, f64, f64),
 }
 
 impl CellMetaData {
@@ -42,6 +46,8 @@ impl CellMetaData {
             population: node.pop.to_string(),
             kind,
             type_id: node.node_type.type_id,
+            position: node.position,
+            rotation: node.rotation,
         }
     }
 }

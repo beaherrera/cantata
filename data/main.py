@@ -345,7 +345,29 @@ class recipe(A.recipe):
 
     def make_cable_cell(self, gid):
         mrf, dec = self.load_cable_data(gid)
-        pwl = A.place_pwlin(mrf)
+
+        x, y, z = rec.gid_to_meta[gid]["position"]  # soma location
+        xrot, yrot, zrot = rec.gid_to_meta[gid]["rotation"]  # rotation angles
+        rot = (
+            A.isometry.rotate(xrot, 1, 0, 0)
+            * A.isometry.rotate(yrot, 0, 1, 0)
+            * A.isometry.rotate(zrot, 0, 0, 1)
+        )
+        shifted = A.isometry.translate(-x, -y, -z) * rot
+
+        # get translation and rotation
+        dP = A.place_pwlin(mrf, shifted).at(A.location(0, 0.5))
+        dx = -dP.x
+        dy = -dP.y
+        dz = -dP.z
+
+        print(gid, dx, dy, dz)
+
+        # apply translation and rotation
+        pwl = A.place_pwlin(
+            mrf,
+            rot * A.isometry.translate(dx, dy, dz),
+        )
         lbl = A.label_dict().add_swc_tags()
         # NOTE in theory we could have more and in other places...
         dec.place(
@@ -436,7 +458,7 @@ class recipe(A.recipe):
             self.cable_data[gid] = (mrf, dec)
             timing.toc("build/simulation/io")
         mrf, dec = self.cable_data[gid]
-        return mrf, A.decor(dec) # NOTE copy that decor!!
+        return mrf, A.decor(dec)  # NOTE copy that decor!!
 
 
 timing.tic("build/recipe")
@@ -448,6 +470,7 @@ timing.tic("build/simulation")
 comm = None
 if have_mpi:
     from mpi4py import MPI
+
     comm = MPI.COMM_WORLD
 
 gpu = None

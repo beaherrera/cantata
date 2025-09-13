@@ -538,6 +538,10 @@ pub struct Node {
     pub dynamics: Map<String, f64>,
     /// Custom parameters extracted from the population.
     pub custom: Map<String, f64>,
+    /// Node position coordinates (x, y, z)
+    pub position: (f64, f64, f64),
+    /// Node rotation angles (rotation_angle_xaxis, rotation_angle_yaxis, rotation_angle_zaxis)
+    pub rotation: (f64, f64, f64),
 }
 
 /// Bookeeping: index into top-level structure, ie population `pop` is stored at
@@ -1244,6 +1248,25 @@ impl Simulation {
             custom.insert(k.to_string(), vs[group_index]);
         }
 
+        // Extract position coordinates (x, y, z)
+        let get_cell_attributes = |c: &str| -> f64 {
+            if let Some(cs) = group.custom.get(c) {
+                cs[group_index]
+            } else if let Some(Attribute::Float(val)) = node_type.attributes().get(c) {
+                *val
+            } else {
+                0.0 // default value
+            }
+        };
+        let pos_x = get_cell_attributes("x");
+        let pos_y = get_cell_attributes("y");
+        let pos_z = get_cell_attributes("z");
+
+        // Extract rotation angles
+        let rot_x = get_cell_attributes("rotation_angle_xaxis");
+        let rot_y = get_cell_attributes("rotation_angle_yaxis");
+        let rot_z = get_cell_attributes("rotation_angle_zaxis");
+
         let incoming_edges = self.reify_edges(&node_population.name, *node_id)?;
 
         Ok(Node {
@@ -1257,6 +1280,8 @@ impl Simulation {
             incoming_edges,
             dynamics,
             custom,
+            position: (pos_x, pos_y, pos_z),
+            rotation: (rot_x, rot_y, rot_z),
         })
     }
 }
