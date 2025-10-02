@@ -136,12 +136,13 @@ impl Bundle {
         let mut count_by_kind = [0; 3];
         for gid in 0..sim.size {
             let node = sim.reify_node(gid)?;
+            let incoming_edges = sim.reify_edges(gid)?;
             gid_to_meta.push(CellMetaData::from(&node));
-            if !node.incoming_edges.is_empty() {
+            if !incoming_edges.is_empty() {
                 if matches!(node.node_type.model_type, ModelType::Biophysical { .. }) {
                     let mut inc = Vec::new();
                     let mut syn = Vec::new();
-                    for (ix, edge) in node.incoming_edges.iter().enumerate() {
+                    for (ix, edge) in incoming_edges.iter().enumerate() {
                         inc.push((
                             edge.src_gid as usize,
                             0, // in our SONATA model, there is _one_ source on each cell.
@@ -163,8 +164,7 @@ impl Bundle {
                     incoming_connections.insert(gid, inc);
                     synapses.insert(gid, syn);
                 } else {
-                    let inc = node
-                        .incoming_edges
+                    let inc = incoming_edges
                         .iter()
                         .map(|e| {
                             (

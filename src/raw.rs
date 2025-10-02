@@ -437,7 +437,7 @@ impl Simulation {
         let base_dir = path
             .parent()
             .ok_or_else(|| anyhow!("Couldn't find parent of {path:?}."))?;
-        let rd = File::open(&path).with_context(|| format!("Opening {path:?}"))?;
+        let rd = std::io::BufReader::with_capacity(1*1024*1024, File::open(&path).with_context(|| format!("Opening {path:?}"))?);
 
         // Read JSON
         let mut raw: SimulationRaw = serde_json::de::from_reader(rd)
@@ -462,7 +462,7 @@ impl Simulation {
             NetworkOrFile::File(file) => {
                 let mut path: String = base_dir.join(file).to_str().unwrap().into();
                 resolve_manifest(&mut path, &raw.manifest, base_dir)?;
-                let rd = File::open(&path).with_context(|| format!("Opening {path:?}"))?;
+                let rd = std::io::BufReader::with_capacity(1*1024*1024, File::open(&path).with_context(|| format!("Opening {path:?}"))?);
                 let mut net: NetworkFile = serde_json::de::from_reader(rd)
                     .with_context(|| format!("Parsing network {path:?}"))?;
                 net.manifest.insert(
@@ -488,7 +488,7 @@ impl Simulation {
             if let Some(file) = raw.node_sets_file {
                 let mut path: String = base_dir.join(file).to_str().unwrap().into();
                 resolve_manifest(&mut path, &raw.manifest, base_dir)?;
-                let rd = File::open(&path).with_context(|| format!("Opening {path:?}"))?;
+                let rd = std::io::BufReader::with_capacity(1*1024*1024, File::open(&path).with_context(|| format!("Opening {path:?}"))?);
                 let nds: Map<String, NodeSet> = serde_json::de::from_reader(rd)
                     .with_context(|| format!("Parsing nodesets {path:?}"))?;
                 raw.node_sets.extend(nds);

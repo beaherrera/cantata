@@ -345,38 +345,37 @@ class recipe(A.recipe):
 
     def make_cable_cell(self, gid):
         mrf, dec = self.load_cable_data(gid)
+        
+        # Find the soma center in the SWC coordinates
+        ctr = '(support (on-components 0.5 (tag 1)))'
+        off = A.morphology_provider(mrf).reify_locset(ctr)[0]
+        dp = A.place_pwlin(mrf).at(off)
+        swc_pos = A.isometry.translate(dp.x, dp.y, dp.z)
 
-        x, y, z = rec.gid_to_meta[gid]["position"]  # soma location
-        xrot, yrot, zrot = rec.gid_to_meta[gid]["rotation"]  # rotation angles
-        rot = (
-            A.isometry.rotate(xrot, 1, 0, 0)
-            * A.isometry.rotate(yrot, 0, 1, 0)
-            * A.isometry.rotate(zrot, 0, 0, 1)
-        )
-        shifted = A.isometry.translate(-x, -y, -z) * rot
+        # The position SONATA places the soma at
+        x, y, z = rec.gid_to_meta[gid]["position"]
+        son_ipos = A.isometry.translate(-x, -y, -z)
 
-        # get translation and rotation
-        dP = A.place_pwlin(mrf, shifted).at(A.location(0, 0.5))
-        dx = -dP.x
-        dy = -dP.y
-        dz = -dP.z
-
-        print(gid, dx, dy, dz)
-
-        # apply translation and rotation
-        pwl = A.place_pwlin(
-            mrf,
-            rot * A.isometry.translate(dx, dy, dz),
-        )
+        # The rotation applied by SONATA
+        xrot, yrot, zrot = rec.gid_to_meta[gid]["rotation"]
+        son_irot = A.isometry.rotate(-xrot, 1, 0, 0) * A.isometry.rotate(-yrot, 0, 1, 0) * A.isometry.rotate(-zrot, 0, 0, 1)
+        pwl = A.place_pwlin(mrf)
+                        
+        
         lbl = A.label_dict().add_swc_tags()
-        # NOTE in theory we could have more and in other places...
-        dec.place(
-            "(location 0 0.5)", A.threshold_detector(self.threshold * U.mV), "src-0"
-        )
         if gid in self.gid_to_syn:
+            max_ds = 0
             for x, y, z, synapse, params, tag in self.gid_to_syn[gid]:
-                loc, _ = pwl.closest(x, y, z)
+                # undo SONATA transformations, shift into SWC coordinates
+                u, v, w = swc_pos(son_irot(son_ipos((x, y, z))))
+                loc, ds = pwl.closest(u, v, w)
                 dec.place(str(loc), A.synapse(synapse, **params), f"syn-{tag}")
+                max_ds = max(max_ds, ds)
+                
+            # Trip wire in the case a synapse deviates from the expected position
+            if max_ds > 0.1:
+                print(f"[WARN] on cell {gid}  a synapses was displaced by {max_ds}um > 0.1um")
+            
         if gid in self.gid_to_icp:
             for loc, delay, duration, amplitude, tag in self.gid_to_icp[gid]:
                 dec.place(
@@ -388,6 +387,12 @@ class recipe(A.recipe):
                     ),
                     f"ic-{tag}",
                 )
+
+        # NOTE in theory we could have more and in other places...
+        dec.place(
+            ctr, A.threshold_detector(self.threshold * U.mV), "src-0"
+        )
+            
         # Try to determine whether NRN would use Nernst.
         # Arbor applies the Nernst rule globally, not per region.
         regs = dict()

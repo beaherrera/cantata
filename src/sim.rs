@@ -176,7 +176,7 @@ impl NodeList {
             .map_err(anyhow::Error::from)
             .and_then(|p| p.canonicalize().map_err(anyhow::Error::from))
             .with_context(|| format!("Resolving node types {path}"))?;
-        let rd = File::open(&path).with_context(|| format!("Opening {path:?}"))?;
+        let rd = std::io::BufReader::with_capacity(1*1024*1024, File::open(&path).with_context(|| format!("Opening {path:?}"))?);
         let mut tys = csv::ReaderBuilder::new()
             .delimiter(b' ')
             .from_reader(rd)
@@ -363,7 +363,7 @@ impl EdgeList {
             .map_err(anyhow::Error::from)
             .and_then(|p| p.canonicalize().map_err(anyhow::Error::from))
             .with_context(|| format!("Resolving edge types {path}"))?;
-        let rd = File::open(&path).with_context(|| format!("Opening {path:?}"))?;
+        let rd = std::io::BufReader::with_capacity(1*1024*1024, File::open(&path).with_context(|| format!("Opening {path:?}"))?);
         let mut tys = csv::ReaderBuilder::new()
             .delimiter(b' ')
             .from_reader(rd)
@@ -532,8 +532,6 @@ pub struct Node {
     pub node_type_id: u64,
     /// node type used to instantiate
     pub node_type: NodeType,
-    /// connections terminating here.
-    pub incoming_edges: Vec<Edge>,
     /// Dynamics parameters extracted from the population.
     pub dynamics: Map<String, f64>,
     /// Custom parameters extracted from the population.
@@ -709,8 +707,8 @@ impl Simulation {
             for ty in edge_list.types.iter_mut() {
                 if let Some(Attribute::String(name)) = ty.attributes.get("dynamics_params") {
                     let fname = find_component(name, &sim.components)?;
-                    let fdata = std::fs::File::open(fname)?;
-                    let fdata: Map<String, serde_json::Value> = serde_json::from_reader(&fdata)
+                    let fdata = std::io::BufReader::with_capacity(1*1024*1024, std::fs::File::open(fname)?);
+                    let fdata: Map<String, serde_json::Value> = serde_json::from_reader(fdata)
                         .with_context(|| format!("Parsing JSON from {name}"))?;
                     let mut param = fdata
                         .into_iter()
@@ -739,10 +737,10 @@ impl Simulation {
                     | ModelType::Virtual { attributes, .. } => {
                         if let Some(Attribute::String(name)) = attributes.get("dynamics_params") {
                             let fname = find_component(name, &sim.components)?;
-                            let fdata = std::fs::File::open(fname)?;
+                            let fdata = std::io::BufReader::with_capacity(1*1024*1024, std::fs::File::open(fname)?);
                             let fdata =
                                 serde_json::from_reader::<_, Map<String, serde_json::Value>>(
-                                    &fdata,
+                                    fdata,
                                 )
                                 .with_context(|| format!("Parsing JSON from {name}"))?
                                 .into_iter()
@@ -956,19 +954,28 @@ impl Simulation {
         Ok(res)
     }
 
-    fn reify_edges(&self, target_population: &str, target_id: u64) -> Result<Vec<Edge>> {
+    pub fn reify_edges(&self, gid: usize) -> Result<Vec<Edge>> {
+        let (node_pop_idx, node_id) = self
+            .gid_to_node_population
+            .get(gid)
+            .ok_or_else(|| anyhow!("Unknown gid {gid}, must be in [0, {})", self.size))?;
+        let node_pop_id = self.node_populations.get(*node_pop_idx).expect("Unknown population");
+        let node_list = &self.node_lists[node_pop_id.list_index];
+        let node_population = &node_list.populations[node_pop_id.pop_index];
+        let target_population = &node_population.name;
+
         let mut incoming_edges = Vec::new();
         for edge_list in &self.edge_lists {
             for edge_population in edge_list
                 .populations
                 .iter()
-                .filter(|p| p.target_pop == target_population)
+                .filter(|p| &p.target_pop == target_population)
             {
                 for (edge_index, _) in edge_population
                     .target_ids
                     .iter()
                     .enumerate()
-                    .filter(|it| *it.1 == target_id)
+                    .filter(|it| *it.1 == *node_id)
                 {
                     let edge_index_error = || {
                         anyhow!(
@@ -1181,7 +1188,7 @@ impl Simulation {
     }
 
     pub fn reify_node(&self, gid: usize) -> Result<Node> {
-        let (node_pop_idx, node_id) = self
+        let (node_pop_idx, _node_id) = self
             .gid_to_node_population
             .get(gid)
             .ok_or_else(|| anyhow!("Unknown gid {gid}, must be in [0, {})", self.size))?;
@@ -1267,8 +1274,6 @@ impl Simulation {
         let rot_y = get_cell_attributes("rotation_angle_yaxis");
         let rot_z = get_cell_attributes("rotation_angle_zaxis");
 
-        let incoming_edges = self.reify_edges(&node_population.name, *node_id)?;
-
         Ok(Node {
             gid,
             pop: node_population.name.clone(),
@@ -1277,7 +1282,6 @@ impl Simulation {
             group_index,
             node_type_id,
             node_type,
-            incoming_edges,
             dynamics,
             custom,
             position: (pos_x, pos_y, pos_z),

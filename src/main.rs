@@ -90,7 +90,7 @@ fn build(from: &str, to: &str) -> Result<()> {
     {
         std::fs::create_dir_all(&to).with_context(|| format!("Creating output dir {to:?}"))?;
         to.push("sim.cbor");
-        let writer = std::fs::File::create(&to)?;
+        let writer = std::io::BufWriter::with_capacity(1*1024*1024, std::fs::File::create(&to)?);
         ciborium::into_writer(&out, writer)?;
         to.pop();
     }
