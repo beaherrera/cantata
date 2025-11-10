@@ -44,19 +44,19 @@ pub enum ModelType {
     Biophysical {
         model_template: String,
         #[serde(flatten)]
-        attributes: Map<String, Attribute>,
+        attributes: Map<Box<str>, Attribute>,
     },
     #[serde(rename = "single_compartment")]
     Single {
         model_template: String,
         #[serde(flatten)]
-        attributes: Map<String, Attribute>,
+        attributes: Map<Box<str>, Attribute>,
     },
     #[serde(rename = "point_neuron")]
     Point {
         model_template: String,
         #[serde(flatten)]
-        attributes: Map<String, Attribute>,
+        attributes: Map<Box<str>, Attribute>,
     },
     #[serde(rename = "virtual")]
     Virtual {
@@ -91,7 +91,7 @@ pub struct NodeType {
     pub model_type: ModelType,
     /// type-wide dynamics, pulled from the model-type
     #[serde(default)]
-    pub dynamics: Map<String, f64>,
+    pub dynamics: Map<Box<str>, f64>,
 }
 
 impl NodeType {
@@ -106,7 +106,7 @@ impl NodeType {
         }
     }
 
-    pub fn attributes(&self) -> &Map<String, Attribute> {
+    pub fn attributes(&self) -> &Map<Box<str>, Attribute> {
         match &self.model_type {
             ModelType::Biophysical { attributes, .. }
             | ModelType::Single { attributes, .. }
@@ -119,8 +119,8 @@ impl NodeType {
 #[derive(Debug)]
 pub struct ParameterGroup {
     pub id: u64,
-    pub dynamics: Map<String, Vec<f64>>,
-    pub custom: Map<String, Vec<f64>>,
+    pub dynamics: Map<Box<str>, Vec<f64>>,
+    pub custom: Map<Box<str>, Vec<f64>>,
 }
 
 /// Populations are stored HDF5 files, and have an associated node types file to
@@ -154,7 +154,7 @@ pub struct ParameterGroup {
 ///   under the population
 #[derive(Debug)]
 pub struct NodePopulation {
-    pub name: String,
+    pub name: Box<str>,
     pub size: usize,
     pub type_ids: Vec<u64>,
     pub node_ids: Vec<u64>,
@@ -231,13 +231,13 @@ impl NodeList {
                     if let Ok(dynamics_params) = group.group("dynamics_params") {
                         for param in dynamics_params.datasets()?.iter() {
                             let values = param.read_1d::<f64>()?.to_vec();
-                            let name = param.name().rsplit_once('/').unwrap().1.to_string();
+                            let name: Box<str> = param.name().rsplit_once('/').unwrap().1.into();
                             dynamics.insert(name, values);
                         }
                     }
                     for param in group.datasets()?.iter() {
                         let values = param.read_1d::<f64>()?.to_vec();
-                        let name = param.name().rsplit_once('/').unwrap().1.to_string();
+                        let name = param.name().rsplit_once('/').unwrap().1.into();
                         custom.insert(name, values);
                     }
 
@@ -252,7 +252,7 @@ impl NodeList {
                 group_id += 1;
             }
             pops.push(NodePopulation {
-                name,
+                name: name.into(),
                 size,
                 type_ids,
                 node_ids,
@@ -279,9 +279,9 @@ struct EdgeType {
     #[serde(rename = "pop_name")]
     pub population: Option<String>,
     #[serde(flatten)]
-    pub attributes: Map<String, Attribute>,
+    pub attributes: Map<Box<str>, Attribute>,
     #[serde(default)]
-    pub dynamics: Map<String, f64>,
+    pub dynamics: Map<Box<str>, f64>,
 }
 
 impl EdgeType {
@@ -464,13 +464,13 @@ impl EdgeList {
                     if let Ok(dynamics_params) = group.group("dynamics_params") {
                         for param in dynamics_params.datasets()?.iter() {
                             let values = param.read_1d::<f64>()?.to_vec();
-                            let name = param.name().rsplit_once('/').unwrap().1.to_string();
+                            let name: Box<str> = param.name().rsplit_once('/').unwrap().1.into();
                             dynamics.insert(name, values);
                         }
                     }
                     for param in group.datasets()?.iter() {
                         let values = param.read_1d::<f64>()?.to_vec();
-                        let name = param.name().rsplit_once('/').unwrap().1.to_string();
+                        let name = param.name().rsplit_once('/').unwrap().1.into();
                         custom.insert(name, values);
                     }
 
@@ -512,7 +512,7 @@ pub struct Edge {
     pub mech: Option<String>,
     pub delay: f64,
     pub weight: f64,
-    pub dynamics: Map<String, f64>,
+    pub dynamics: Map<Box<str>, f64>,
 }
 
 /// Reified node, containing all information we currently have
@@ -521,7 +521,7 @@ pub struct Node {
     /// globally (!) unique id
     pub gid: usize,
     /// owning population
-    pub pop: String,
+    pub pop: Box<str>,
     /// id within the population
     pub node_id: u64,
     /// id of containing group.
@@ -533,9 +533,9 @@ pub struct Node {
     /// node type used to instantiate
     pub node_type: NodeType,
     /// Dynamics parameters extracted from the population.
-    pub dynamics: Map<String, f64>,
+    pub dynamics: Map<Box<str>, f64>,
     /// Custom parameters extracted from the population.
-    pub custom: Map<String, f64>,
+    pub custom: Map<Box<str>, f64>,
     /// Node position coordinates (x, y, z)
     pub position: (f64, f64, f64),
     /// Node rotation angles (rotation_angle_xaxis, rotation_angle_yaxis, rotation_angle_zaxis)
@@ -601,7 +601,7 @@ pub struct Simulation {
     /// into node_list and population.
     pub node_populations: Vec<PopId>,
     /// reverse mapping Name -> Id
-    pub node_population_ids: Map<String, usize>,
+    pub node_population_ids: Map<Box<str>, usize>,
     /// Number of total cells
     pub size: usize,
     /// reportable variables per population id
@@ -708,11 +708,11 @@ impl Simulation {
                 if let Some(Attribute::String(name)) = ty.attributes.get("dynamics_params") {
                     let fname = find_component(name, &sim.components)?;
                     let fdata = std::io::BufReader::with_capacity(1*1024*1024, std::fs::File::open(fname)?);
-                    let fdata: Map<String, serde_json::Value> = serde_json::from_reader(fdata)
+                    let fdata: Map<Box<str>, serde_json::Value> = serde_json::from_reader(fdata)
                         .with_context(|| format!("Parsing JSON from {name}"))?;
                     let mut param = fdata
                         .into_iter()
-                        .filter_map(|(k, v)| v.as_f64().map(|v| (k.to_string(), v)))
+                        .filter_map(|(k, v)| v.as_f64().map(|v| (k.clone(), v)))
                         .collect();
                     ty.dynamics.append(&mut param);
                 }
@@ -744,7 +744,7 @@ impl Simulation {
                                 )
                                 .with_context(|| format!("Parsing JSON from {name}"))?
                                 .into_iter()
-                                .filter_map(|(k, v)| v.as_f64().map(|v| (k.to_string(), v)));
+                                .filter_map(|(k, v)| v.as_f64().map(|v| (k.into_boxed_str(), v)));
                             ty.dynamics.extend(fdata);
                         }
                     }
@@ -753,7 +753,7 @@ impl Simulation {
             for (pid, population) in node_list.populations.iter().enumerate() {
                 let pop_idx = node_populations.len();
                 node_populations.push(PopId::new_nodes(lid, pid, start, population)?);
-                node_population_ids.insert(population.name.to_string(), pop_idx);
+                node_population_ids.insert(population.name.to_string().into_boxed_str(), pop_idx);
                 for nid in &population.node_ids {
                     node_population_to_gid.insert((pop_idx, *nid), gid);
                     gid_to_node_population.push((pop_idx, *nid));
@@ -888,7 +888,7 @@ impl Simulation {
             raw::NodeSet::Name(nm) => {
                 let pid = self
                     .node_population_ids
-                    .get(nm)
+                    .get(nm.as_str())
                     .ok_or(anyhow!("Unkown population <{nm}>"))?;
                 let PopId { start, size, .. } = self.node_populations[*pid];
                 (start..start + size).map(|i| i as u64).collect()
@@ -900,7 +900,7 @@ impl Simulation {
                     .ok_or_else(|| anyhow!("Basic NodeSet {cells:?} has no population."))?;
                 let pid = self
                     .node_population_ids
-                    .get(pop)
+                    .get(pop.as_str())
                     .ok_or_else(|| anyhow!("Basic NodeSet refers to unknown population {pop}."))?;
                 let PopId { start, size, .. } = &self.node_populations[*pid];
                 for gid in *start..*start + *size {
@@ -910,7 +910,7 @@ impl Simulation {
                     let mut pred = true;
                     for (k, vs) in rules.iter() {
                         // TODO Can we match on anything else?
-                        if let Some(u) = dynamics.get(k).or(custom.get(k)) {
+                        if let Some(u) = dynamics.get(k.as_str()).or(custom.get(k.as_str())) {
                             match vs {
                                 serde_json::Value::Number(v) => {
                                     let v = v.as_f64().ok_or_else(|| anyhow!("Basic NodeSet {cells:?} has non-float number for param {k}."))?;
@@ -969,7 +969,7 @@ impl Simulation {
             for edge_population in edge_list
                 .populations
                 .iter()
-                .filter(|p| &p.target_pop == target_population)
+                .filter(|p| p.target_pop.as_str() == target_population.as_ref())
             {
                 for (edge_index, _) in edge_population
                     .target_ids
@@ -997,7 +997,7 @@ impl Simulation {
                     let src_pop = &edge_population.source_pop;
                     let src_idx = self
                         .node_population_ids
-                        .get(src_pop)
+                        .get(src_pop.as_str())
                         .ok_or_else(|| anyhow!("Unknown population <{src_pop}>"))?;
                     let src_gid = *self
                         .node_population_to_gid
@@ -1169,7 +1169,7 @@ impl Simulation {
                     let mut dynamics = ty.dynamics.clone();
                     for (k, vs) in &edge_group.dynamics {
                         let v = vs[group_index];
-                        dynamics.insert(k.to_string(), v);
+                        dynamics.insert(k.clone(), v);
                     }
 
                     incoming_edges.push(Edge {
@@ -1240,19 +1240,19 @@ impl Simulation {
                 )
             })?;
 
-        let mut dynamics = node_type.dynamics.clone();
+        let mut dynamics: Map<Box<str>, _> = node_type.dynamics.clone();
         for (k, vs) in &group.dynamics {
-            dynamics.insert(k.to_string(), vs[group_index]);
+            dynamics.insert(k.clone(), vs[group_index]);
         }
 
-        let mut custom = Map::new();
+        let mut custom: Map<Box<str>, _> = Map::new();
         for (k, v) in node_type.attributes() {
             if let Attribute::Float(v) = v {
-                custom.insert(k.to_string(), *v);
+                custom.insert(k.clone().into(), *v);
             }
         }
         for (k, vs) in group.custom.iter() {
-            custom.insert(k.to_string(), vs[group_index]);
+            custom.insert(k.clone(), vs[group_index]);
         }
 
         // Extract position coordinates (x, y, z)

@@ -14,7 +14,7 @@ type ConnectionData = (usize, usize, usize, f64, f64);
 /// (location, variable, tag)
 type ProbeData = (Option<String>, String, usize);
 /// (x, y, z, mech, params, tag)
-type SynapseData = (f64, f64, f64, String, Map<String, f64>, usize);
+type SynapseData = (f64, f64, f64, String, Map<Box<str>, f64>, usize);
 /// (location, delay, duration, current, tag)
 type IClampData = (String, f64, f64, f64, usize);
 
@@ -246,7 +246,7 @@ impl Bundle {
                 ModelType::Virtual { .. } => {
                     // The fields are largely irrelevant here
                     let data: &mut Vec<f64> = gid_to_vrt.entry(gid).or_default();
-                    if let Some(group) = sim.virtual_spikes.get(&node.pop) {
+                    if let Some(group) = sim.virtual_spikes.get(node.pop.as_ref()) {
                         if let Some(ts) = group.get(&node.node_id) {
                             data.append(&mut ts.clone());
                         }
